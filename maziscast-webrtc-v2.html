@@ -1,0 +1,140 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+<style>
+  body { background:#000; color:#0f0; text-align:center; font-family:Tahoma; padding:20px; }
+  canvas { border:2px solid #0f0; background:#000; image-rendering: pixelated; }
+  button, input { padding:10px 15px; background:#0f0; border:none; font-weight:bold; border-radius:5px; margin:5px; color:#000; cursor:pointer; }
+  button:disabled { background:#333; color:#555; }
+  #container { display:flex; justify-content:center; gap:20px; flex-wrap:wrap; }
+ .box { border:1px dashed #0f0; padding:15px; border-radius:10px; }
+  textarea { width:90%; background:#111; color:#0f0; border:1px solid #0f0; }
+  #status { font-size:18px; padding:10px; border-radius:5px; }
+ .error { background:#400; color:#f00; }
+ .success { background:#040; color:#0f0; }
+</style>
+</head>
+<body>
+<h2>📡 MazisCast v2.1 - بث عبر الشبكة</h2>
+
+<div class="box">
+  <h3>طريقة الاستخدام في 3 خطوات</h3>
+  <p>1. المرسل يدوس "انشئ غرفة" و يرسل الكود للمستقبل</p>
+  <p>2. المستقبل يلصق الكود و يدوس "ادخل الغرفة" و يرسل الرد للمرسل</p>
+  <p>3. المرسل يلصق الرد و يدوس "اتصل" و يبدأ البث</p>
+</div>
+
+<div class="box">
+  <button id="btnOffer">1. انشئ غرفة - انا المرسل</button>
+  <button id="btnAnswer">2. ادخل الغرفة - انا المستقبل</button>
+  <button id="btnConnect" disabled>3. اتصل و ابدأ</button>
+  <textarea id="signalBox" rows="4" placeholder="هنا بظهر الكود. انسخو و رسلو"></textarea>
+  <button id="btnCopy">نسخ الكود</button>
+</div>
+
+<hr>
+<div class="box">
+  <input type="file" id="videoFile" accept="video/*">
+  <button id="btnCast" disabled>ابدأ البث</button>
+</div>
+
+<div id="container">
+  <div><h3>المصدر</h3><canvas id="source" width="160" height="120"></canvas></div>
+  <div><h3>المستقبل</h3><canvas id="screen" width="160" height="120"></canvas></div>
+</div>
+<div id="status">الحالة: واقف</div>
+
+<script>
+const VID_WIDTH=160, VID_HEIGHT=120, FPS=8;
+const HEADER=[1,1,1,1,1,1,1,1,1,1];
+let pc, dc, isSender=false;
+
+const statusDiv = document.getElementById('status');
+const sCtx=document.getElementById('source').getContext('2d');
+const rCtx=document.getElementById('screen').getContext('2d');
+
+function log(msg, type="success"){
+  statusDiv.innerText = "الحالة: " + msg;
+  statusDiv.className = type;
+}
+
+function showError(e){
+  console.error(e);
+  log("خطأ: " + e.message, "error");
+}
+
+// 1. اعدادات الاتصال - ضفنا TURN مجاني
+pc = new RTCPeerConnection({
+  iceServers:[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'stun:stun1.l.google.com:19302'},
+    // سيرفر TURN مجاني للتجربة
+    {urls:'turn:numb.viagenie.ca', username:'webrtc@live.com', credential:'muazkh'}
+  ]
+});
+
+pc.onicecandidate = e => {
+  if(e.candidate) log("بفتش عن افضل طريق للاتصال...");
+}
+pc.onconnectionstatechange = () => log("حالة الاتصال: " + pc.connectionState);
+pc.ondatachannel = e => {
+  dc = e.channel;
+  dc.onopen = () => { log("تم الاتصال! جاهز للبث"); document.getElementById('btnCast').disabled=false; }
+  dc.onmessage = ev => {
+    let signal = JSON.parse(ev.data);
+    let frame = decodeSignal(signal);
+    if(frame) drawFrame(frame);
+  }
+}
+
+document.getElementById('btnOffer').onclick = async () => {
+  try{
+    isSender=true;
+    dc = pc.createDataChannel("mazis");
+    let offer = await pc.createOffer();
+    await pc.setLocalDescription(offer);
+    document.getElementById('signalBox').value = JSON.stringify(pc.localDescription);
+    log("تم انشاء العرض. انسخ الكود وارسلو");
+    document.getElementById('btnConnect').disabled=false;
+  }catch(e){ showError(e); }
+}
+
+document.getElementById('btnAnswer').onclick = async () => {
+  try{
+    isSender=false;
+    let offer = JSON.parse(document.getElementById('signalBox').value);
+    await pc.setRemoteDescription(offer);
+    let answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    document.getElementById('signalBox').value = JSON.stringify(pc.localDescription);
+    log("تم انشاء الرد. انسخ الكود وارجعو للمرسل");
+  }catch(e){ showError(e); }
+}
+
+document.getElementById('btnConnect').onclick = async () => {
+  try{
+    if(pc.signalingState!== "have-local-offer") throw new Error("لازم تعمل انشئ غرفة اول");
+    let answer = JSON.parse(document.getElementById('signalBox').value);
+    await pc.setRemoteDescription(answer);
+    log("جاري الاتصال...");
+  }catch(e){ showError(e); }
+}
+
+document.getElementById('btnCopy').onclick = () => {
+  navigator.clipboard.writeText(document.getElementById('signalBox').value);
+  log("تم النسخ");
+}
+
+function encodeFrame(pixels){ let signal=[...HEADER]; for(let p of pixels) signal.push(p>128?1:0); signal.push(...HEADER.map(b=>0)); return signal; }
+function decodeSignal(signal){ for(let i=0;i<signal.length-HEADER.length;i++){ if(signal.slice(i,i+HEADER.length).every((v,j)=>v===HEADER[j])){ let frame=signal.slice(i+HEADER.length,i+HEADER.length+VID_WIDTH*VID_HEIGHT); return frame.map(b=>b*255); }}}
+function drawFrame(frame){ rCtx.fillStyle="#000";rCtx.fillRect(0,0,VID_WIDTH,VID_HEIGHT); for(let y=0;y<VID_HEIGHT;y++){ for(let x=0;x<VID_WIDTH;x++){ if(frame[y*VID_WIDTH+x]===255){rCtx.fillStyle="#fff";rCtx.fillRect(x,y,1,1);}}}}
+
+document.getElementById('btnCast').onclick = async () => {
+  const file=document.getElementById('videoFile').files[0]; if(!file)return alert("اختار فيديو");
+  const video=document.createElement('video'); video.src=URL.createObjectURL(file);video.muted=true;video.play();
+  setInterval(()=>{ sCtx.drawImage(video,0,0,VID_WIDTH,VID_HEIGHT); let data=sCtx.getImageData(0,0,VID_WIDTH,VID_HEIGHT).data; let pixels=[];for(let i=0;i<data.length;i+=4)pixels.push((data[i]+data[i+1]+data[i+2])/3); let signal=encodeFrame(pixels); if(dc&&dc.readyState==="open")dc.send(JSON.stringify(signal)); },1000/FPS);
+  log("شغال ببث...");
+}
+</script>
+</body>
+</html>
