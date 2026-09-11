@@ -1,0 +1,133 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<title>Mazis Cast V3</title>
+<style>
+body { margin: 0; background: #111; color: #fff; font-family: Arial; display: flex; flex-direction: column; height: 100vh; }
+#topbar { background: #222; padding: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#topbar input { padding: 5px; background: #333; color: #fff; border: 1px solid #555; }
+#topbar button { padding: 5px 15px; background: #0f0; color: #000; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
+
+#main { flex: 1; display: flex; overflow: hidden; }
+#videoArea { flex: 1; background: #000; }
+#canvas { width: 100%; height: 100%; object-fit: contain; cursor: grab; background: #000; }
+
+#chat { width: 280px; background: #1a1a1a; display: flex; flex-direction: column; border-right: 2px solid #0f0; }
+#messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 14px; }
+.msg { margin: 5px 0; padding: 6px; background: #333; border-radius: 5px; word-wrap: break-word; }
+.msg b { color: #0f0; }
+#chatInput { display: flex; padding: 10px; gap: 5px; }
+#chatInput input { flex: 1; padding: 8px; background: #333; color: #fff; border: 1px solid #555; }
+#chatInput button { padding: 8px 12px; background: #0f0; border: none; cursor: pointer; }
+
+#controls { background: #222; padding: 10px; display: flex; gap: 10px; justify-content: center; }
+#controls button { padding: 10px 20px; background: #0f0; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+    <label>📁 فيديو: <input type="file" id="upload" accept="video/*"></label>
+    <input type="text" id="roomId" placeholder="اسم الغرفة" value="mazis1">
+    <button id="join">اتصال</button>
+    <span id="status" style="color:#ff0">بدون اتصال</span>
+</div>
+
+<div id="main">
+    <div id="videoArea">
+        <video id="canvas" controls></video>
+    </div>
+
+    <div id="chat">
+        <div id="messages"></div>
+        <div id="chatInput">
+            <input type="text" id="msgText" placeholder="اكتب...">
+            <button id="sendMsg">ارسال</button>
+        </div>
+    </div>
+</div>
+
+<div id="controls">
+    <button id="play">▶️ تشغيل</button>
+    <button id="pause">⏸️ ايقاف</button>
+    <button id="reset">🔄 تصغير</button>
+</div>
+
+<script>
+let video = document.getElementById('canvas');
+let channel = null;
+let connected = false;
+let myName = "انا" + Math.floor(Math.random()*100);
+
+// === 1. رفع الفيديو ===
+document.getElementById('upload').onchange = function(e){
+    let file = e.target.files[0];
+    if(file){
+        let url = URL.createObjectURL(file);
+        video.src = url;
+        video.load();
+        addMsg("النظام", "تم رفع: " + file.name);
+    }
+}
+
+// === 2. التكبير والتصغير ===
+let scale = 1, isDragging = false, startX = 0, startY = 0, tx = 0, ty = 0;
+video.addEventListener('wheel', function(e) {
+    e.preventDefault();
+    scale = scale + e.deltaY * -0.001;
+    if(scale < 0.5) scale = 0.5;
+    if(scale > 3) scale = 3;
+    updateTransform();
+});
+video.addEventListener('mousedown', function(e) { isDragging = true; startX = e.clientX - tx; startY = e.clientY - ty; });
+window.addEventListener('mousemove', function(e) { if(!isDragging) return; tx = e.clientX - startX; ty = e.clientY - startY; updateTransform(); });
+window.addEventListener('mouseup', function(){ isDragging = false; });
+document.getElementById('reset').onclick = function(){ scale = 1; tx = 0; ty = 0; updateTransform(); }
+function updateTransform(){ video.style.transform = "translate(" + tx + "px, " + ty + "px) scale(" + scale + ")"; }
+
+// === 3. الدردشة ===
+function addMsg(name, text){
+    let div = document.createElement('div');
+    div.className = 'msg';
+    div.innerHTML = "<b>" + name + ":</b> " + text;
+    document.getElementById('messages').appendChild(div);
+    document.getElementById('messages').scrollTop = 99999;
+}
+
+document.getElementById('sendMsg').onclick = function(){
+    let text = document.getElementById('msgText').value;
+    if(text!= "" && connected){
+        addMsg(myName, text);
+        channel.postMessage({type: 'chat', name: myName, text: text});
+        document.getElementById('msgText').value = '';
+    }
+}
+document.getElementById('msgText').onkeypress = function(e){ if(e.keyCode == 13) document.getElementById('sendMsg').click(); }
+
+// === 4. الاتصال ===
+document.getElementById('join').onclick = function(){
+    let room = document.getElementById('roomId').value;
+    channel = new BroadcastChannel(room);
+    connected = true;
+    document.getElementById('status').innerText = "متصل: " + room;
+
+    channel.onmessage = function(e){
+        let data = e.data;
+        if(data.type == 'play'){ video.currentTime = data.time; video.play(); }
+        if(data.type == 'pause'){ video.currentTime = data.time; video.pause(); }
+        if(data.type == 'seek'){ video.currentTime = data.time; }
+        if(data.type == 'chat'){ addMsg(data.name, data.text); }
+    }
+    addMsg("النظام", "دخلت الغرفة");
+}
+
+// === 5. ازرار التحكم ===
+function send(data){ if(connected) channel.postMessage(data); }
+document.getElementById('play').onclick = function(){ video.play(); send({type: 'play', time: video.currentTime}); }
+document.getElementById('pause').onclick = function(){ video.pause(); send({type: 'pause', time: video.currentTime}); }
+video.onseeked = function(){ send({type: 'seek', time: video.currentTime}); }
+
+</script>
+</body>
+</html>
