@@ -1,0 +1,297 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teleparty App</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎬</text></svg>">
+<style>
+body { margin: 0; background: #111; color: #fff; font-family: Arial; display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+#topbar { background: #222; padding: 10px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+#appName { font-size: 14px; font-weight: bold; color: #0f0; margin-left: 10px; border-left: 2px solid #0f0; padding-left: 10px; }
+#topbar input[type="text"] { padding: 6px; background: #333; color: #fff; border: 1px solid #555; border-radius: 4px; }
+#topbar input[type="file"] { display: none; }
+#topbar label.uploadBtn { padding: 6px 12px; background: #00aaff; color: #fff; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
+#topbar button { padding: 6px 12px; background: #0f0; color: #000; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
+#topbar button.tool { background: #555; color: #fff; }
+#topbar button.tool.active { background: orange; }
+#topbar button.blue { background: #00aaff; color: white; }
+#topbar button.red { background: red; color: white; }
+#videoGrid { display: flex; flex-wrap: wrap; gap: 5px; padding: 5px; background: #1a1a1a; border-bottom: 2px solid #0f0; max-height: 22vh; }
+.video-box { width: 150px; height: 110px; background: #000; border: 2px solid #333; border-radius: 5px; position: relative; }
+.video-box video { width: 100%; height: 100%; object-fit: cover; }
+.video-box span { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.7); padding: 2px; font-size: 11px; text-align: center; }
+#main { flex: 1; display: flex; overflow: hidden; }
+#viewerArea { flex: 1; background: #000; position: relative; overflow: auto; display: flex; align-items: center; justify-content: center; }
+#canvas { width: 100%; height: 100%; object-fit: contain; background: #000; }
+#imageView { max-width: 100%; max-height: 100%; display: none; }
+#audioView { width: 90%; display: none; }
+#pdfView { width: 100%; height: 100%; overflow-y: auto; display: none; background: #333; }
+#pdfView canvas { display: block; margin: 10px auto; }
+#txtView { width: 100%; height: 100%; padding: 20px; background: #222; color: #eee; overflow-y: auto; display: none; white-space: pre-wrap; font-size: 16px; line-height: 1.8; }
+#annotationCanvas { position: absolute; top: 0; left: 0; pointer-events: none; z-index: 10; }
+#viewerArea.annotation #annotationCanvas { pointer-events: auto; }
+#chat { width: 280px; background: #1a1a1a; display: flex; flex-direction: column; border-right: 2px solid #0f0; }
+#messages { flex: 1; overflow-y: auto; padding: 10px; font-size: 14px; word-wrap: break-word; }
+.msg { margin: 5px 0; padding: 6px; background: #333; border-radius: 5px; }
+.msg b { color: #0f0; }
+.msg.sys { color: #ff0; background: #444; }
+#chatInput { display: flex; padding: 10px; gap: 5px; }
+#chatInput input { flex: 1; padding: 8px; background: #333; color: #fff; border: 1px solid #555; }
+#chatInput button { padding: 8px 12px; background: #0f0; border: none; cursor: pointer; }
+#controls { background: #222; padding: 8px; display: flex; gap: 8px; justify-content: center; align-items: center; flex-wrap: wrap; }
+#controls button { padding: 8px 15px; background: #0f0; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+#emojiBar { display: flex; gap: 10px; font-size: 24px; }
+#emojiBar span { cursor: pointer; }
+.flying-emoji { position: absolute; font-size: 32px; animation: flyUp 3s linear forwards; pointer-events: none; z-index: 20; }
+@keyframes flyUp { 0% { bottom: 0; opacity: 1; } 100% { bottom: 100%; opacity: 0; } }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+    <div id="appName">Teleparty App</div>
+
+    <label for="uploadMedia" class="uploadBtn">رفع فيديو / صوت</label>
+    <input type="file" id="uploadMedia" accept="video/*,audio/*">
+
+    <label for="uploadDoc" class="uploadBtn" style="background:#ff8800;">رفع PDF / TXT</label>
+    <input type="file" id="uploadDoc" accept=".pdf,.txt">
+
+    <input type="text" id="myId" placeholder="اكتب اسمك هنا" value="host">
+    <input type="text" id="friendId" placeholder="اكتب اسم صاحبك هنا">
+    <button id="create">انشاء غرفة</button>
+    <button id="join">دخول غرفة</button>
+    <button id="voiceBtn">تشغيل الصوت</button>
+    <button id="videoBtn" class="blue">تشغيل الكاميرا</button>
+    <button id="toolHighlight" class="tool">قلم تظليل</button>
+    <button id="toolDraw" class="tool">قلم شخبطة</button>
+    <button id="toolSelect" class="tool active">مؤشر</button>
+    <span id="status" style="color:#ff0">في انتظارك</span>
+</div>
+
+<div id="videoGrid"></div>
+
+<div id="main">
+    <div id="viewerArea">
+        <video id="canvas" controls></video>
+        <img id="imageView">
+        <audio id="audioView" controls></audio>
+        <div id="pdfView"></div>
+        <div id="txtView"></div>
+        <canvas id="annotationCanvas"></canvas>
+    </div>
+    <div id="chat">
+        <div id="messages"></div>
+        <div id="chatInput">
+            <input type="text" id="msgText" placeholder="اكتب رسالتك هنا...">
+            <button id="sendMsg">ارسال</button>
+        </div>
+    </div>
+</div>
+
+<div id="controls">
+    <button id="play">تشغيل</button>
+    <button id="pause">ايقاف</button>
+    <div id="emojiBar">
+        <span onclick="sendEmoji('❤️')">❤️</span><span onclick="sendEmoji('😂')">😂</span>
+        <span onclick="sendEmoji('🔥')">🔥</span><span onclick="sendEmoji('👏')">👏</span>
+        <span onclick="sendEmoji('😮')">😮</span><span onclick="sendEmoji('💯')">💯</span>
+    </div>
+    <button id="prevPage" style="display:none;">الصفحة السابقة</button>
+    <button id="nextPage" style="display:none;">الصفحة التالية</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+let video = document.getElementById('canvas');
+let imageView = document.getElementById('imageView');
+let audioView = document.getElementById('audioView');
+let pdfView = document.getElementById('pdfView');
+let txtView = document.getElementById('txtView');
+let viewerArea = document.getElementById('viewerArea');
+let annCanvas = document.getElementById('annotationCanvas');
+let annCtx = annCanvas.getContext('2d');
+
+let peer, conn, call;
+let myName = "انا";
+let isSyncing = false;
+let isHost = false;
+let localStream = null;
+let localVideoStream = null;
+let mediaType = "";
+let mediaChunks = [];
+let mediaMime = "";
+let pdfDoc = null;
+let currentPage = 1;
+let tool = 'select';
+let annotations = [];
+let isDrawing = false;
+
+// === الادوات ===
+document.getElementById('toolHighlight').onclick = ()=> setTool('highlight');
+document.getElementById('toolDraw').onclick = ()=> setTool('draw');
+document.getElementById('toolSelect').onclick = ()=> setTool('select');
+function setTool(t){ tool=t; document.querySelectorAll('.tool').forEach(b=>b.classList.remove('active')); document.getElementById('tool'+t.charAt(0).toUpperCase()+t.slice(1)).classList.add('active'); viewerArea.className = t=='select'? '' : 'annotation'; }
+
+// === الكاميرا والصوت ===
+document.getElementById('voiceBtn').onclick = async function(){
+    if(!localStream){ localStream = await navigator.mediaDevices.getUserMedia({ audio: true }); document.getElementById('voiceBtn').className="red"; document.getElementById('voiceBtn').innerText="ايقاف الصوت"; if(conn) call = peer.call(conn.peer, localStream); addSysMsg("دخلت الصوت"); }
+    else { localStream.getTracks().forEach(t=>t.stop()); localStream=null; document.getElementById('voiceBtn').className=""; document.getElementById('voiceBtn').innerText="تشغيل الصوت"; if(call) call.close(); addSysMsg("طلعت من الصوت"); }
+}
+document.getElementById('videoBtn').onclick = async function(){
+    if(!localVideoStream){ localVideoStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true }); document.getElementById('videoBtn').className="red"; document.getElementById('videoBtn').innerText="ايقاف الكاميرا"; addVideoBox(myName, localVideoStream, true); if(conn) call = peer.call(conn.peer, localVideoStream); addSysMsg("شغلت الكاميرا"); }
+    else { localVideoStream.getTracks().forEach(t=>t.stop()); localVideoStream=null; document.getElementById('videoBtn').className="blue"; document.getElementById('videoBtn').innerText="تشغيل الكاميرا"; if(call) call.close(); removeVideoBox(myName); addSysMsg("قفلت الكاميرا"); }
+}
+function addVideoBox(id, stream, isMe){ removeVideoBox(id); let box=document.createElement('div'); box.id='vid-'+id; box.className='video-box'; let v=document.createElement('video'); v.srcObject=stream; v.autoplay=true; v.muted=isMe; box.appendChild(v); let span=document.createElement('span'); span.innerText=id+(isMe?' انت':''); box.appendChild(span); document.getElementById('videoGrid').appendChild(box); }
+function removeVideoBox(id){ let b=document.getElementById('vid-'+id); if(b) b.remove(); }
+
+// === الايموجي - يطير في اي شي ===
+function sendEmoji(emoji){ if(conn) send({type:'emoji', emoji:emoji}); showEmoji(emoji); }
+function showEmoji(emoji){ let el=document.createElement('div'); el.className='flying-emoji'; el.innerText=emoji; el.style.left=Math.random()*80+10+'%'; viewerArea.appendChild(el); setTimeout(()=>el.remove(),3000); }
+
+// === زر 1: رفع فيديو وصوت ===
+document.getElementById('uploadMedia').onchange = function(e){
+    let file = e.target.files[0]; if(!file) return;
+    addSysMsg("تم رفع: " + file.name);
+    hideAllMedia();
+    mediaMime = file.type;
+    mediaType = file.type.startsWith('video/')? 'video' : 'audio';
+    if(mediaType=='video') video.style.display='block'; else audioView.style.display='block';
+
+    let reader = new FileReader();
+    reader.onload = function(evt){
+        let base64 = evt.target.result;
+        loadLocal(base64); // 1. شغل محلي
+        addSysMsg("تم التحميل محلي");
+
+        if(conn){ // 2. رسل لو في اتصال
+            addSysMsg("برسل الملف...");
+            send({type:'mediaStart', typeFile:mediaType, name:file.name, mime:mediaMime});
+            sendInChunks(base64);
+            send({type:'mediaEnd'});
+        }
+    }
+    reader.readAsDataURL(file);
+}
+
+// === زر 2: رفع PDF و TXT ===
+document.getElementById('uploadDoc').onchange = function(e){
+    let file = e.target.files[0]; if(!file) return;
+    addSysMsg("تم رفع: " + file.name);
+    hideAllMedia();
+    mediaMime = file.type;
+    mediaType = file.type == 'application/pdf'? 'pdf' : 'txt';
+    if(mediaType=='pdf') pdfView.style.display='block'; else txtView.style.display='block';
+
+    let reader = new FileReader();
+    reader.onload = function(evt){
+        let data = evt.target.result;
+        loadLocal(data); // 1. شغل محلي
+        addSysMsg("تم التحميل محلي");
+
+        if(conn){ // 2. رسل لو في اتصال
+            addSysMsg("برسل الملف...");
+            send({type:'mediaStart', typeFile:mediaType, name:file.name, mime:mediaMime});
+            sendInChunks(data);
+            send({type:'mediaEnd'});
+        }
+    }
+    if(mediaType == 'pdf'){ reader.readAsArrayBuffer(file); } else{ reader.readAsDataURL(file); }
+}
+
+function loadLocal(data){
+    if(mediaType=='video'){ video.src=data; video.load(); }
+    if(mediaType=='audio'){ audioView.src=data; audioView.load(); }
+    if(mediaType=='image'){ imageView.src=data; setTimeout(resizeCanvas,100); }
+    if(mediaType=='txt'){ txtView.innerText=atob(data.split(',')[1]); }
+    if(mediaType=='pdf'){
+        pdfjsLib.getDocument({data:data}).promise.then(pdf=>{ pdfDoc=pdf; currentPage=1; renderPdfPage(1); document.getElementById('prevPage').style.display='inline'; document.getElementById('nextPage').style.display='inline'; });
+    }
+}
+
+function sendInChunks(base64){ const chunkSize=16000; for(let i=0;i<base64.length;i+=chunkSize){ send({type:'mediaChunk', data:base64.slice(i, i + chunkSize)}); } }
+
+function hideAllMedia(){ video.pause(); audioView.pause(); video.src=""; audioView.src=""; video.style.display='none'; imageView.style.display='none'; audioView.style.display='none'; pdfView.style.display='none'; txtView.style.display='none'; document.getElementById('prevPage').style.display='none'; document.getElementById('nextPage').style.display='none'; annotations=[]; redrawAnnotations(); }
+
+function renderPdfPage(p){
+    pdfDoc.getPage(p).then(page=>{
+        let v=page.getViewport({scale:1.5});
+        annCanvas.width=v.width; annCanvas.height=v.height;
+        let c=document.createElement('canvas'); c.width=v.width; c.height=v.height;
+        pdfView.innerHTML=""; pdfView.appendChild(c);
+        page.render({canvasContext:c.getContext('2d'), viewport:v}).promise.then(redrawAnnotations);
+    });
+}
+document.getElementById('nextPage').onclick=()=>{ if(pdfDoc && currentPage<pdfDoc.numPages){ currentPage++; renderPdfPage(currentPage); if(conn) send({type:'docPage', page:currentPage}); } }
+document.getElementById('prevPage').onclick=()=>{ if(pdfDoc && currentPage>1){ currentPage--; renderPdfPage(currentPage); if(conn) send({type:'docPage', page:currentPage}); } }
+
+// === مزامنة السكرول ===
+viewerArea.onscroll=()=>{ if(!isSyncing && conn && (mediaType=='pdf'||mediaType=='txt')) send({type:'docScroll', scroll:viewerArea.scrollTop}); }
+
+// === القلم والتظليل ===
+function resizeCanvas(){ if(mediaType=='image'){ annCanvas.width=imageView.clientWidth; annCanvas.height=imageView.clientHeight; annCanvas.style.left=imageView.offsetLeft+'px'; annCanvas.style.top=imageView.offsetTop+'px'; } }
+window.onresize=resizeCanvas;
+
+annCanvas.onmousedown=(e)=>{ if(tool=='draw'){ isDrawing=true; annotations.push({type:'draw', points:[], color:'red', page:currentPage}); } if(tool=='highlight'){ let rect=annCanvas.getBoundingClientRect(); annotations.push({type:'highlight', x:e.clientX-rect.left, y:e.clientY-rect.top, w:100, h:20, page:currentPage}); } }
+annCanvas.onmousemove=(e)=>{ if(isDrawing){ let rect=annCanvas.getBoundingClientRect(); annotations[annotations.length-1].points.push({x:e.clientX-rect.left, y:e.clientY-rect.top}); redrawAnnotations(); } }
+annCanvas.onmouseup=()=>{ if(isDrawing){ isDrawing=false; if(conn) send({type:'annotation', data:annotations[annotations.length-1]}); } }
+
+function redrawAnnotations(){
+    annCtx.clearRect(0,0,annCanvas.width,annCanvas.height);
+    annotations.filter(a=>a.page==currentPage).forEach(a=>{
+        if(a.type=='draw'){ annCtx.strokeStyle=a.color; annCtx.lineWidth=3; annCtx.beginPath(); a.points.forEach((p,i)=>{ i==0?annCtx.moveTo(p.x,p.y):annCtx.lineTo(p.x,p.y); }); annCtx.stroke(); }
+        if(a.type=='highlight'){ annCtx.fillStyle='rgba(255,255,0,0.4)'; annCtx.fillRect(a.x,a.y,a.w,a.h); }
+    });
+}
+
+// === الشات ===
+function addMsg(name,text){ let div=document.createElement('div'); div.className='msg'; div.innerHTML="<b>"+name+":</b> "+text; document.getElementById('messages').appendChild(div); document.getElementById('messages').scrollTop=99999; }
+function addSysMsg(text){ let div=document.createElement('div'); div.className='msg sys'; div.innerHTML="<b>النظام:</b> "+text; document.getElementById('messages').appendChild(div); document.getElementById('messages').scrollTop=99999; }
+document.getElementById('sendMsg').onclick=()=>{ let text=document.getElementById('msgText').value; if(text){ addMsg(myName,text); if(conn) send({type:'chat',name:myName,text:text}); document.getElementById('msgText').value=''; } }
+
+// === الاتصال ===
+document.getElementById('create').onclick=()=>{ myName=document.getElementById('myId').value; peer=new Peer(myName); peer.on('open',id=>{document.getElementById('status').innerText="الغرفة: "+id;}); peer.on('connection',c=>{conn=c; isHost=true; setupConn();}); peer.on('call',c=>{c.answer(localVideoStream||localStream); c.on('stream',s=>addVideoBox(c.peer,s,false));}); }
+document.getElementById('join').onclick=()=>{ myName=document.getElementById('myId').value; let friend=document.getElementById('friendId').value; peer=new Peer(myName+"-guest"); peer.on('open',()=>{conn=peer.connect(friend); setupConn();}); peer.on('call',c=>{c.answer(localVideoStream||localStream); c.on('stream',s=>addVideoBox(c.peer,s,false));}); }
+
+function setupConn(){
+    conn.on('open',()=>{document.getElementById('status').innerText="متصل"; addSysMsg("تم الاتصال مع "+conn.peer);});
+    conn.on('data',data=>{
+        isSyncing=true;
+        if(data.type=='mediaStart'){ mediaChunks=[]; mediaType=data.typeFile; mediaMime=data.mime; hideAllMedia(); if(mediaType=='video')video.style.display='block'; if(mediaType=='audio')audioView.style.display='block'; if(mediaType=='pdf')pdfView.style.display='block'; if(mediaType=='txt')txtView.style.display='block'; addSysMsg("جاري استلام: "+data.name); }
+        if(data.type=='mediaChunk'){ mediaChunks.push(data.data); }
+        if(data.type=='mediaEnd'){
+            let finalData=mediaChunks.join('');
+            loadLocal(finalData);
+            addSysMsg("تم الاستلام كامل");
+        }
+        if(data.type=='docScroll'){viewerArea.scrollTop=data.scroll;}
+        if(data.type=='docPage'){currentPage=data.page; if(mediaType=='pdf')renderPdfPage(currentPage);}
+        if(data.type=='annotation'){annotations.push(data.data); redrawAnnotations();}
+        if(data.type=='chat'){addMsg(data.name,data.text);}
+        if(data.type=='emoji'){showEmoji(data.emoji);}
+        if(data.type=='play'){(mediaType=='video'?video:audioView).currentTime=data.time; (mediaType=='video'?video:audioView).play();}
+        if(data.type=='pause'){(mediaType=='video'?video:audioView).currentTime=data.time; (mediaType=='video'?video:audioView).pause();}
+        if(data.type=='seek'){(mediaType=='video'?video:audioView).currentTime=data.time;}
+        setTimeout(()=>{isSyncing=false;},100);
+    });
+}
+
+function send(data){ if(conn) conn.send(data); }
+
+// مزامنة الفيديو والصوت
+video.onplay=()=>{if(isHost && conn) send({type:'play',time:video.currentTime});}
+video.onpause=()=>{if(isHost && conn) send({type:'pause',time:video.currentTime});}
+video.onseeked=()=>{if(isHost && conn) send({type:'seek',time:video.currentTime});}
+audioView.onplay=()=>{if(isHost && conn) send({type:'play',time:audioView.currentTime});}
+audioView.onpause=()=>{if(isHost && conn) send({type:'pause',time:audioView.currentTime});}
+audioView.onseeked=()=>{if(isHost && conn) send({type:'seek',time:audioView.currentTime});}
+document.getElementById('play').onclick=()=>(mediaType=='video'?video:audioView).play();
+document.getElementById('pause').onclick=()=>(mediaType=='video'?video:audioView).pause();
+
+</script>
+</body>
+</html>
