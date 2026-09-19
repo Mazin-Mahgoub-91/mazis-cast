@@ -1,0 +1,203 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teleparty Video Only</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#111;color:#fff;font-family:Arial;display:flex;flex-direction:column;height:100vh;height:100dvh}
+#topbar{background:#222;padding:12px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;position:sticky;top:0;z-index:50}
+#topbar b{color:#0f0}
+#topbar label{background:#00aaff;padding:8px 16px;border-radius:6px;cursor:pointer;font-weight:bold;color:#fff}
+#topbar input{display:none}
+#topbar input[type=text]{display:block;padding:7px;background:#333;color:#fff;border:1px solid #555;border-radius:4px;width:120px}
+#topbar button{padding:7px 14px;background:#0f0;border:none;border-radius:5px;font-weight:bold;cursor:pointer}
+#main{flex:1;display:flex;overflow:hidden;min-height:0}
+#viewerArea{flex:1;background:#000;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;min-height:300px}
+#videoPlayer{width:100%;height:100%;object-fit:contain;display:none;background:#000}
+#audioPlayer{width:90%;display:none}
+#placeholder{color:#777;text-align:center;font-size:18px;line-height:1.6}
+#chat{width:340px;background:#1a1a1a;display:flex;flex-direction:column;border-right:2px solid #0f0;flex-shrink:0}
+#messages{flex:1;overflow-y:auto;padding:12px}
+.msg{margin:8px 0;padding:10px 12px;background:#2a2a2a;border-radius:8px;font-size:16px;line-height:1.5;word-break:break-word}
+.msg.sys{background:#3a3a1a;color:#ffeb3b;font-size:14px;border:1px solid #555}
+.msg b{color:#0f0;font-size:15px}
+#chatInput{display:flex;padding:10px;gap:8px;border-top:1px solid #333;align-items:center}
+#chatInput input{flex:1;display:block;padding:10px 12px;background:#333;color:#fff;border:1px solid #555;border-radius:6px;font-size:16px;min-width:0}
+#chatInput button{padding:9px 16px;background:#0f0;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:14px;white-space:nowrap;flex-shrink:0}
+#controls{background:#222;padding:12px;display:flex;gap:12px;justify-content:center;flex-shrink:0}
+#controls button{padding:10px 20px;background:#0f0;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:15px}
+@media(max-width:768px){
+  body{height:100dvh;overflow:hidden}
+  #topbar{padding:8px;gap:6px}
+  #topbar input[type=text]{width:calc(50% - 50px);font-size:14px}
+  #main{flex-direction:column}
+  #viewerArea{height:42vh;min-height:42vh;flex:none}
+  #chat{width:100%;height:58vh;flex:none;border-right:none;border-top:2px solid #0f0}
+  #messages{padding:8px}
+ .msg{font-size:15px;padding:8px 10px;margin:6px 0}
+  #chatInput{padding:8px;gap:6px}
+  #chatInput input{padding:9px 10px;font-size:15px}
+  #chatInput button{padding:8px 14px;font-size:13px}
+  #controls{padding:8px}
+  #controls button{padding:8px 16px;font-size:13px}
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <b>Teleparty</b>
+  <label for="fileInput">📁 رفع فيديو / صوت</label>
+  <input type="file" id="fileInput" accept="video/*,audio/*">
+  <input type="text" id="myId" placeholder="اسمك" value="host">
+  <input type="text" id="friendId" placeholder="غرفة">
+  <button id="btnCreate">انشاء</button>
+  <button id="btnJoin">دخول</button>
+  <span id="status" style="color:#ff0;font-size:12px">جاهز</span>
+</div>
+
+<div id="main">
+  <div id="viewerArea">
+    <div id="placeholder">ارفع فيديو او صوت<br><small>mp4 - webm - mp3</small></div>
+    <video id="videoPlayer" controls playsinline preload="auto"></video>
+    <audio id="audioPlayer" controls preload="auto"></audio>
+  </div>
+  <div id="chat">
+    <div id="messages"></div>
+    <div id="chatInput">
+      <input id="txtMsg" placeholder="اكتب رسالتك هنا...">
+      <button id="btnSend">ارسال</button>
+    </div>
+  </div>
+</div>
+
+<div id="controls">
+  <button id="btnPlay">تشغيل ▶</button>
+  <button id="btnPause">ايقاف ⏸</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+const videoEl=document.getElementById('videoPlayer');
+const audioEl=document.getElementById('audioPlayer');
+const placeholder=document.getElementById('placeholder');
+const messagesDiv=document.getElementById('messages');
+const fileInput=document.getElementById('fileInput');
+let peer=null,conn=null,localURL=null,mediaType='',mediaChunks=[],isSyncing=false;
+
+function addSys(t){
+  const d=document.createElement('div');d.className='msg sys';d.textContent='النظام: '+t;
+  messagesDiv.appendChild(d);messagesDiv.scrollTop=messagesDiv.scrollHeight;
+}
+function addChat(n,t){
+  const d=document.createElement('div');d.className='msg';d.innerHTML='<b>'+n+':</b> '+t;
+  messagesDiv.appendChild(d);messagesDiv.scrollTop=messagesDiv.scrollHeight;
+}
+addSys('جاهز - المزامنة للطرفين');
+
+fileInput.onchange=function(){
+  const file=fileInput.files[0];if(!file)return;
+  addSys('اخترت: '+file.name);
+  videoEl.pause();audioEl.pause();
+  videoEl.style.display='none';audioEl.style.display='none';
+  placeholder.style.display='none';
+  if(localURL){try{URL.revokeObjectURL(localURL);}catch(e){}}
+  const isVideo=file.type.indexOf('video')===0 || file.name.match(/mp4|webm|mov/i);
+  mediaType=isVideo?'video':'audio';
+  localURL=URL.createObjectURL(file);
+  if(mediaType==='video'){
+    videoEl.src=localURL;videoEl.style.display='block';videoEl.load();
+    videoEl.onloadeddata=function(){addSys('فيديو جاهز');};
+  }else{audioEl.src=localURL;audioEl.style.display='block';audioEl.load();addSys('صوت جاهز');}
+  if(conn && conn.open){
+    setTimeout(function(){
+      const reader=new FileReader();
+      reader.onload=function(ev){
+        const b64=ev.target.result;
+        conn.send({type:'mediaStart',fileType:mediaType,name:file.name});
+        for(let i=0;i<b64.length;i+=16000){conn.send({type:'mediaChunk',data:b64.slice(i,i+16000)});}
+        conn.send({type:'mediaEnd'});addSys('تم الارسال');
+      };reader.readAsDataURL(file);
+    },1000);
+  }
+  fileInput.value='';
+};
+
+// تحكم للطرفين - مع منع الـ loop
+function sendControl(type,time){
+  if(isSyncing) return;
+  if(conn && conn.open) conn.send({type:type,t:time});
+}
+document.getElementById('btnPlay').onclick=function(){
+  if(mediaType==='video'){videoEl.play();sendControl('play',videoEl.currentTime);}
+  if(mediaType==='audio'){audioEl.play();sendControl('play',audioEl.currentTime);}
+};
+document.getElementById('btnPause').onclick=function(){
+  if(mediaType==='video'){videoEl.pause();sendControl('pause',videoEl.currentTime);}
+  if(mediaType==='audio'){audioEl.pause();sendControl('pause',audioEl.currentTime);}
+};
+videoEl.onplay=function(){sendControl('play',videoEl.currentTime);};
+videoEl.onpause=function(){sendControl('pause',videoEl.currentTime);};
+videoEl.onseeked=function(){sendControl('seek',videoEl.currentTime);};
+audioEl.onplay=function(){sendControl('play',audioEl.currentTime);};
+audioEl.onpause=function(){sendControl('pause',audioEl.currentTime);};
+audioEl.onseeked=function(){sendControl('seek',audioEl.currentTime);};
+
+document.getElementById('btnSend').onclick=function(){
+  const txt=document.getElementById('txtMsg').value.trim();if(!txt)return;
+  const name=document.getElementById('myId').value||'انا';
+  addChat(name,txt);if(conn && conn.open)conn.send({type:'chat',name:name,text:txt});
+  document.getElementById('txtMsg').value='';
+};
+document.getElementById('txtMsg').onkeypress=function(e){if(e.key==='Enter')document.getElementById('btnSend').click();};
+
+document.getElementById('btnCreate').onclick=function(){
+  const id=document.getElementById('myId').value||'host';
+  peer=new Peer(id);
+  peer.on('open',function(mid){document.getElementById('status').textContent='غرفة: '+mid;addSys('غرفة: '+mid);});
+  peer.on('connection',function(c){conn=c;setupConn();});
+};
+document.getElementById('btnJoin').onclick=function(){
+  const myId=document.getElementById('myId').value||'guest';
+  const friendId=document.getElementById('friendId').value.trim();
+  if(!friendId){addSys('اكتب اسم الغرفة');return;}
+  peer=new Peer(myId+'-'+Date.now());
+  peer.on('open',function(){conn=peer.connect(friendId);setupConn();addSys('بدخل: '+friendId);});
+};
+
+function setupConn(){
+  conn.on('open',function(){document.getElementById('status').textContent='متصل: '+conn.peer;addSys('متصل مع '+conn.peer+' - التحكم للطرفين');});
+  conn.on('data',function(data){
+    if(data.type==='mediaStart'){mediaChunks=[];mediaType=data.fileType;videoEl.pause();audioEl.pause();videoEl.style.display='none';audioEl.style.display='none';placeholder.style.display='none';addSys('استلام: '+data.name);}
+    if(data.type==='mediaChunk'){mediaChunks.push(data.data);}
+    if(data.type==='mediaEnd'){
+      const full=mediaChunks.join('');
+      isSyncing=true;
+      if(mediaType==='video'){videoEl.src=full;videoEl.style.display='block';videoEl.load();addSys('اكتمل - دوس تشغيل');}
+      if(mediaType==='audio'){audioEl.src=full;audioEl.style.display='block';addSys('اكتمل');}
+      setTimeout(function(){isSyncing=false;},500);
+    }
+    if(data.type==='chat'){addChat(data.name,data.text);}
+    if(data.type==='play' || data.type==='pause' || data.type==='seek'){
+      isSyncing=true;
+      const t=data.t;
+      if(mediaType==='video'){
+        if(Math.abs(videoEl.currentTime-t)>0.5) videoEl.currentTime=t;
+        if(data.type==='play') videoEl.play();
+        if(data.type==='pause') videoEl.pause();
+      }
+      if(mediaType==='audio'){
+        if(Math.abs(audioEl.currentTime-t)>0.5) audioEl.currentTime=t;
+        if(data.type==='play') audioEl.play();
+        if(data.type==='pause') audioEl.pause();
+      }
+      setTimeout(function(){isSyncing=false;},300);
+    }
+  });
+  conn.on('close',function(){addSys('انقطع الاتصال');});
+}
+</script>
+</body>
+</html>
