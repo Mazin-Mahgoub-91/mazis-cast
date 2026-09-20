@@ -1,0 +1,431 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Teleparty Stable V2</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#111;color:#fff;font-family:Arial;display:flex;flex-direction:column;overflow:hidden}
+#topbar{background:#222;padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-shrink:0;position:sticky;top:0;z-index:20}
+#topbar b{color:#0f0}
+.upload-wrap{position:relative}
+#btnUpload{ background:#00aaff;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:bold;color:#fff;font-size:14px;border:none}
+#uploadMenu{position:absolute;top:110%;right:0;background:#2a2a2a;border:1px solid #444;border-radius:8px;min-width:180px;display:none;flex-direction:column;overflow:hidden;z-index:100;box-shadow:0 8px 20px rgba(0,0,0,0.5)}
+#uploadMenu.show{display:flex}
+#uploadMenu button{background:none;border:none;color:#fff;padding:12px 14px;text-align:right;cursor:pointer;font-size:14px;border-bottom:1px solid #333}
+#uploadMenu button:hover{background:#3a3a3a}
+#uploadMenu button:last-child{border-bottom:none}
+#topbar input{display:none}
+#topbar input[type=text]{display:block;padding:7px 10px;background:#333;color:#fff;border:1px solid #555;border-radius:4px;width:110px;font-size:14px}
+#topbar button.action{padding:7px 12px;background:#0f0;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-size:14px}
+#status{color:#ff0;font-size:11px}
+#main{flex:1;display:flex;overflow:hidden;min-height:0}
+#viewerArea{flex:1;background:#000;display:flex;align-items:center;justify-content:center;position:relative;min-width:0;overflow:hidden}
+#videoPlayer{width:100%;height:100%;object-fit:contain;display:none;background:#000}
+#audioPlayer{width:90%;display:none}
+#imageViewer{max-width:100%;max-height:100%;object-fit:contain;display:none}
+#docViewer{width:100%;height:100%;background:#fff;color:#111;padding:20px;overflow-y:auto;overflow-x:auto;display:none;text-align:right;direction:rtl;scrollbar-width:thin}
+#docViewer pre{white-space:pre-wrap;word-break:break-word;font-family:Arial;font-size:15px;line-height:1.7}
+#docViewer table{border-collapse:collapse;width:100%;font-size:14px}
+#docViewer th,#docViewer td{border:1px solid #ccc;padding:6px 8px;text-align:right}
+#docViewer th{background:#eee}
+#placeholder{color:#777;text-align:center;font-size:17px;line-height:1.6;position:absolute}
+#chat{width:340px;background:#1a1a1a;display:flex;flex-direction:column;border-right:2px solid #0f0;flex-shrink:0;min-width:0;overflow:hidden;direction:ltr}
+#messages{flex:1;overflow-y:auto;overflow-x:hidden;padding:12px;direction:rtl;scrollbar-width:thin;scrollbar-color:#555 #1a1a1a;scrollbar-gutter:stable}
+#messages::-webkit-scrollbar{width:6px}
+#messages::-webkit-scrollbar-thumb{background:#555;border-radius:3px}
+.msg{margin:8px 0;padding:10px 12px;background:#2a2a2a;border-radius:8px;font-size:16px;line-height:1.5;word-break:break-word}
+.msg.sys{background:#3a3a1a;color:#ffeb3b;font-size:14px}
+.msg b{color:#0f0;font-size:15px}
+#chatInput{display:flex;padding:10px;gap:6px;border-top:1px solid #333;background:#1a1a1a;align-items:center;flex-shrink:0;direction:rtl}
+#chatInput input{flex:1;display:block;padding:10px 12px;background:#333;color:#fff;border:1px solid #555;border-radius:6px;font-size:16px;min-width:0}
+#chatInput button{padding:10px 14px;background:#0f0;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:14px;flex-shrink:0;min-width:60px}
+#controls{background:#222;padding:10px;display:flex;gap:10px;justify-content:center;flex-shrink:0}
+#controls button{padding:9px 18px;background:#0f0;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:14px}
+@media(max-width:768px){
+  html,body{height:auto;min-height:100dvh;overflow:auto}
+  #main{flex-direction:column;overflow:visible;flex:none}
+  #viewerArea{height:55vw;min-height:260px;max-height:55vh;flex:none;width:100%}
+  #chat{width:100%;height:auto;min-height:45vh;flex:none;border-right:none;border-top:2px solid #0f0;overflow:visible;direction:rtl}
+  #messages{overflow:visible;flex:none;min-height:200px;direction:rtl}
+  #chatInput{position:sticky;bottom:0;z-index:5;background:#1e1e1e}
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <b>Teleparty</b>
+  <div class="upload-wrap">
+    <button id="btnUpload">رفع ملف ▾</button>
+    <div id="uploadMenu">
+      <button data-accept="video/*,audio/*" data-cat="media">رفع فيديو / صوت</button>
+      <button data-accept=".pdf,.txt,text/plain,application/pdf" data-cat="doc">رفع pdf / txt</button>
+      <button data-accept=".csv,text/csv" data-cat="csv">رفع csv</button>
+      <button data-accept="image/*" data-cat="image">رفع صور</button>
+    </div>
+  </div>
+  <input type="file" id="fileInput">
+  <input type="text" id="myId" placeholder="اسمك" value="host">
+  <input type="text" id="friendId" placeholder="اسم صاحبك">
+  <button class="action" id="btnCreate">انشاء</button>
+  <button class="action" id="btnJoin">دخول</button>
+  <span id="status">جاهز</span>
+</div>
+
+<div id="main">
+  <div id="viewerArea">
+    <div id="placeholder">ارفع اي ملف من زر رفع ملف<br><small>فيديو - صوت - pdf - txt - csv - صور</small></div>
+    <video id="videoPlayer" controls playsinline preload="auto"></video>
+    <audio id="audioPlayer" controls preload="auto"></audio>
+    <img id="imageViewer" alt="image">
+    <div id="docViewer"></div>
+  </div>
+  <div id="chat">
+    <div id="messages"></div>
+    <div id="chatInput">
+      <input id="txtMsg" placeholder="اكتب رسالة...">
+      <button id="btnSend">ارسال</button>
+    </div>
+  </div>
+</div>
+
+<div id="controls">
+  <button id="btnPlay">تشغيل</button>
+  <button id="btnPause">ايقاف</button>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+var videoEl=document.getElementById('videoPlayer');
+var audioEl=document.getElementById('audioPlayer');
+var imageEl=document.getElementById('imageViewer');
+var docEl=document.getElementById('docViewer');
+var placeholder=document.getElementById('placeholder');
+var messagesDiv=document.getElementById('messages');
+var fileInput=document.getElementById('fileInput');
+var uploadMenu=document.getElementById('uploadMenu');
+var peer=null;
+var conn=null;
+var localURL=null;
+var mediaType='';
+var mediaChunks=[];
+var isSyncing=false;
+var lastScrollTime=0;
+
+function addSys(t){
+  var d=document.createElement('div');
+  d.className='msg sys';
+  d.textContent='النظام: '+t;
+  messagesDiv.appendChild(d);
+  messagesDiv.scrollTop=messagesDiv.scrollHeight;
+}
+function addChat(n,t){
+  var d=document.createElement('div');
+  d.className='msg';
+  d.innerHTML='<b>'+n+':</b> '+t;
+  messagesDiv.appendChild(d);
+  messagesDiv.scrollTop=messagesDiv.scrollHeight;
+}
+function hideAll(){
+  videoEl.style.display='none';
+  audioEl.style.display='none';
+  imageEl.style.display='none';
+  docEl.style.display='none';
+  placeholder.style.display='none';
+  videoEl.pause();
+  audioEl.pause();
+}
+function showPlaceholder(){
+  hideAll();
+  placeholder.style.display='block';
+}
+addSys('الاصدار المستقر V2 - جاهز');
+
+document.getElementById('btnUpload').onclick=function(e){
+  e.stopPropagation();
+  uploadMenu.classList.toggle('show');
+};
+document.addEventListener('click',function(){uploadMenu.classList.remove('show');});
+
+var menuBtns=document.querySelectorAll('#uploadMenu button');
+for(var i=0;i<menuBtns.length;i++){
+  menuBtns[i].onclick=function(){
+    var acc=this.getAttribute('data-accept');
+    fileInput.setAttribute('accept',acc);
+    fileInput.click();
+    uploadMenu.classList.remove('show');
+  };
+}
+
+fileInput.onchange=function(){
+  var file=fileInput.files[0];
+  if(!file){return;}
+  addSys('اخترت: '+file.name);
+  if(localURL){try{URL.revokeObjectURL(localURL);}catch(e){}}
+  localURL=URL.createObjectURL(file);
+  handleLocalFile(file,localURL);
+  if(conn && conn.open){
+    setTimeout(function(){
+      var reader=new FileReader();
+      reader.onload=function(ev){
+        var b64=ev.target.result;
+        var fType=getFileType(file);
+        conn.send({type:'mediaStart',fileType:fType,name:file.name});
+        var chunkSize=16000;
+        for(var j=0;j<b64.length;j+=chunkSize){
+          var slice=b64.slice(j,j+chunkSize);
+          conn.send({type:'mediaChunk',data:slice});
+        }
+        conn.send({type:'mediaEnd'});
+        addSys('تم الارسال: '+file.name);
+      };
+      reader.readAsDataURL(file);
+    },800);
+  }
+  fileInput.value='';
+};
+
+function getFileType(file){
+  var name=file.name.toLowerCase();
+  var type=file.type.toLowerCase();
+  if(type.indexOf('video')===0){return 'video';}
+  if(type.indexOf('audio')===0){return 'audio';}
+  if(type.indexOf('image')===0){return 'image';}
+  if(name.indexOf('.pdf')>-1){return 'pdf';}
+  if(name.indexOf('.txt')>-1){return 'txt';}
+  if(name.indexOf('.csv')>-1){return 'csv';}
+  if(type.indexOf('pdf')>-1){return 'pdf';}
+  if(type.indexOf('csv')>-1){return 'csv';}
+  return 'txt';
+}
+
+function handleLocalFile(file,url){
+  var fType=getFileType(file);
+  mediaType=fType;
+  hideAll();
+  if(fType==='video'){
+    videoEl.src=url;
+    videoEl.style.display='block';
+    videoEl.load();
+    videoEl.onloadeddata=function(){addSys('فيديو جاهز');};
+  }else if(fType==='audio'){
+    audioEl.src=url;
+    audioEl.style.display='block';
+    audioEl.load();
+    addSys('صوت جاهز');
+  }else if(fType==='image'){
+    imageEl.src=url;
+    imageEl.style.display='block';
+    addSys('صورة جاهزة - اسكرول عادي بالماوس');
+  }else if(fType==='pdf'){
+    docEl.style.display='block';
+    docEl.innerHTML='<p style="color:#000;margin-bottom:10px;font-weight:bold">PDF: '+file.name+'</p><iframe src="'+url+'" style="width:100%;height:80vh;border:none"></iframe><p style="color:#666;font-size:13px;margin-top:10px">تقدر تعمل تظليل و نسخ عادي - السكرول متزامن</p>';
+    addSys('PDF جاهز - سكرول متزامن');
+  }else if(fType==='txt'){
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      var text=ev.target.result;
+      docEl.style.display='block';
+      docEl.innerHTML='<pre>'+escapeHtml(text)+'</pre>';
+      addSys('TXT جاهز - تقدر تظلل بالماوس عادي');
+    };
+    reader.readAsText(file);
+  }else if(fType==='csv'){
+    var reader2=new FileReader();
+    reader2.onload=function(ev){
+      var csvText=ev.target.result;
+      var rows=csvText.split('\n');
+      var html='<table>';
+      for(var r=0;r<rows.length;r++){
+        if(rows[r].trim()===''){continue;}
+        var cols=rows[r].split(',');
+        html+='<tr>';
+        for(var c=0;c<cols.length;c++){
+          if(r===0){html+='<th>'+escapeHtml(cols[c])+'</th>';}
+          else{html+='<td>'+escapeHtml(cols[c])+'</td>';}
+        }
+        html+='</tr>';
+      }
+      html+='</table>';
+      docEl.style.display='block';
+      docEl.innerHTML=html;
+      addSys('CSV جاهز - سكرول متزامن');
+    };
+    reader2.readAsText(file);
+  }
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function sendControl(type,time){
+  if(isSyncing){return;}
+  if(conn && conn.open){conn.send({type:type,t:time});}
+}
+function sendScroll(percent){
+  if(isSyncing){return;}
+  var now=Date.now();
+  if(now-lastScrollTime<80){return;}
+  lastScrollTime=now;
+  if(conn && conn.open){conn.send({type:'scroll',p:percent});}
+}
+
+document.getElementById('btnPlay').onclick=function(){
+  if(mediaType==='video'){videoEl.play();sendControl('play',videoEl.currentTime);}
+  if(mediaType==='audio'){audioEl.play();sendControl('play',audioEl.currentTime);}
+};
+document.getElementById('btnPause').onclick=function(){
+  if(mediaType==='video'){videoEl.pause();sendControl('pause',videoEl.currentTime);}
+  if(mediaType==='audio'){audioEl.pause();sendControl('pause',audioEl.currentTime);}
+};
+videoEl.onplay=function(){sendControl('play',videoEl.currentTime);};
+videoEl.onpause=function(){sendControl('pause',videoEl.currentTime);};
+videoEl.onseeked=function(){sendControl('seek',videoEl.currentTime);};
+audioEl.onplay=function(){sendControl('play',audioEl.currentTime);};
+audioEl.onpause=function(){sendControl('pause',audioEl.currentTime);};
+audioEl.onseeked=function(){sendControl('seek',audioEl.currentTime);};
+
+docEl.onscroll=function(){
+  if(docEl.style.display==='none'){return;}
+  var max=docEl.scrollHeight-docEl.clientHeight;
+  if(max<=0){return;}
+  var percent=docEl.scrollTop/max;
+  sendScroll(percent);
+};
+
+document.getElementById('btnSend').onclick=function(){
+  var txt=document.getElementById('txtMsg').value.trim();
+  if(!txt){return;}
+  var name=document.getElementById('myId').value||'انا';
+  addChat(name,txt);
+  if(conn && conn.open){conn.send({type:'chat',name:name,text:txt});}
+  document.getElementById('txtMsg').value='';
+};
+document.getElementById('txtMsg').onkeypress=function(e){if(e.key==='Enter'){document.getElementById('btnSend').click();}};
+
+document.getElementById('btnCreate').onclick=function(){
+  var id=document.getElementById('myId').value||'host';
+  peer=new Peer(id);
+  peer.on('open',function(mid){
+    document.getElementById('status').textContent='غرفة: '+mid;
+    addSys('غرفة: '+mid);
+  });
+  peer.on('connection',function(c){conn=c;setupConn();});
+};
+document.getElementById('btnJoin').onclick=function(){
+  var myId=document.getElementById('myId').value||'guest';
+  var friendId=document.getElementById('friendId').value.trim();
+  if(!friendId){addSys('اكتب اسم صاحبك');return;}
+  peer=new Peer(myId+'-'+Date.now());
+  peer.on('open',function(){
+    conn=peer.connect(friendId);
+    setupConn();
+    addSys('بدخل: '+friendId);
+  });
+};
+
+function setupConn(){
+  conn.on('open',function(){
+    document.getElementById('status').textContent='متصل: '+conn.peer;
+    addSys('متصل مع '+conn.peer+' - تحكم + سكرول متزامن');
+  });
+  conn.on('data',function(data){
+    if(data.type==='mediaStart'){
+      mediaChunks=[];
+      mediaType=data.fileType;
+      hideAll();
+      addSys('استلام: '+data.name+' نوع '+data.fileType);
+    }
+    if(data.type==='mediaChunk'){mediaChunks.push(data.data);}
+    if(data.type==='mediaEnd'){
+      var full=mediaChunks.join('');
+      isSyncing=true;
+      hideAll();
+      if(mediaType==='video'){videoEl.src=full;videoEl.style.display='block';videoEl.load();addSys('فيديو اكتمل');}
+      else if(mediaType==='audio'){audioEl.src=full;audioEl.style.display='block';addSys('صوت اكتمل');}
+      else if(mediaType==='image'){imageEl.src=full;imageEl.style.display='block';addSys('صورة اكتملت');}
+      else if(mediaType==='pdf'){
+        docEl.style.display='block';
+        docEl.innerHTML='<p style="color:#000;margin-bottom:10px;font-weight:bold">PDF مستلم</p><iframe src="'+full+'" style="width:100%;height:80vh;border:none"></iframe>';
+        addSys('PDF اكتمل');
+      }
+      else if(mediaType==='txt'){
+        var base64Part=full.split(',')[1];
+        if(base64Part){
+          try{
+            var decoded=atob(base64Part);
+            var utf8=decodeURIComponent(escape(decoded));
+            docEl.style.display='block';
+            docEl.innerHTML='<pre>'+escapeHtml(utf8)+'</pre>';
+          }catch(e){
+            docEl.style.display='block';
+            docEl.innerHTML='<pre>ملف نصي مستلم</pre>';
+          }
+        }
+        addSys('TXT اكتمل');
+      }
+      else if(mediaType==='csv'){
+        var base64Part2=full.split(',')[1];
+        if(base64Part2){
+          try{
+            var decoded2=atob(base64Part2);
+            var utf8_2=decodeURIComponent(escape(decoded2));
+            var rows=utf8_2.split('\n');
+            var html='<table>';
+            for(var r=0;r<rows.length;r++){
+              if(rows[r].trim()===''){continue;}
+              var cols=rows[r].split(',');
+              html+='<tr>';
+              for(var c=0;c<cols.length;c++){
+                if(r===0){html+='<th>'+escapeHtml(cols[c])+'</th>';}
+                else{html+='<td>'+escapeHtml(cols[c])+'</td>';}
+              }
+              html+='</tr>';
+            }
+            html+='</table>';
+            docEl.style.display='block';
+            docEl.innerHTML=html;
+          }catch(e){
+            docEl.style.display='block';
+            docEl.innerHTML='<pre>CSV مستلم</pre>';
+          }
+        }
+        addSys('CSV اكتمل');
+      }
+      setTimeout(function(){isSyncing=false;},600);
+    }
+    if(data.type==='chat'){addChat(data.name,data.text);}
+    if(data.type==='play' || data.type==='pause' || data.type==='seek'){
+      isSyncing=true;
+      var t=data.t;
+      if(mediaType==='video'){
+        if(Math.abs(videoEl.currentTime-t)>0.5){videoEl.currentTime=t;}
+        if(data.type==='play'){videoEl.play();}
+        if(data.type==='pause'){videoEl.pause();}
+      }
+      if(mediaType==='audio'){
+        if(Math.abs(audioEl.currentTime-t)>0.5){audioEl.currentTime=t;}
+        if(data.type==='play'){audioEl.play();}
+        if(data.type==='pause'){audioEl.pause();}
+      }
+      setTimeout(function(){isSyncing=false;},300);
+    }
+    if(data.type==='scroll'){
+      if(docEl.style.display!=='none'){
+        isSyncing=true;
+        var max=docEl.scrollHeight-docEl.clientHeight;
+        var target=max*data.p;
+        docEl.scrollTop=target;
+        setTimeout(function(){isSyncing=false;},150);
+      }
+    }
+  });
+  conn.on('close',function(){addSys('انقطع الاتصال');});
+}
+</script>
+</body>
+</html>
