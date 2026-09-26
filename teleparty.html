@@ -1,0 +1,309 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>teleparty</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:#111;color:#fff;font-family:Arial;display:flex;flex-direction:column;overflow:hidden}
+#topbar{background:#222;padding:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-shrink:0;position:sticky;top:0;z-index:20}
+#topbar b{color:#0f0}
+.upload-wrap{position:relative}
+#btnUpload{background:#00aaff;padding:8px 14px;border-radius:6px;cursor:pointer;font-weight:bold;color:#fff;font-size:14px;border:none}
+#uploadMenu{position:absolute;top:110%;right:0;background:#2a2a2a;border:1px solid #444;border-radius:8px;min-width:180px;display:none;flex-direction:column;overflow:hidden;z-index:100;box-shadow:0 8px 20px rgba(0,0,0,0.5)}
+#uploadMenu.show{display:flex}
+#uploadMenu button{background:none;border:none;color:#fff;padding:12px 14px;text-align:right;cursor:pointer;font-size:14px;border-bottom:1px solid #333}
+#uploadMenu button:hover{background:#3a3a3a}
+#topbar input{display:none}
+#topbar input[type=text]{display:block;padding:7px 10px;background:#333;color:#fff;border:1px solid #555;border-radius:4px;width:110px;font-size:14px}
+#topbar button.action{padding:7px 12px;background:#0f0;border:none;border-radius:5px;font-weight:bold;cursor:pointer;font-size:14px}
+#status{color:#ff0;font-size:11px}
+#main{flex:1;display:flex;overflow:hidden;min-height:0}
+#viewerArea{flex:1;background:#000;display:flex;align-items:center;justify-content:center;position:relative;min-width:0;overflow:hidden}
+#videoPlayer{width:100%;height:100%;object-fit:contain;display:none;background:#000}
+#audioPlayer{width:90%;display:none}
+#imageViewer{max-width:100%;max-height:100%;object-fit:contain;display:none}
+#docViewer{width:100%;height:100%;background:#fff;color:#111;padding:20px;overflow-y:auto;display:none;text-align:left;direction:ltr;user-select:text;-webkit-user-select:text}
+#docViewer pre{white-space:pre-wrap;word-break:break-word;font-family:Arial;font-size:15px;line-height:1.7;user-select:text}
+#docViewer mark{background:#ffeb3b;color:#000;padding:1px 2px;border-radius:3px}
+#docViewer table{border-collapse:collapse;width:100%;font-size:14px;direction:ltr}
+#docViewer th,#docViewer td{border:1px solid #ccc;padding:6px 8px;text-align:left}
+#docViewer th{background:#eee}
+#placeholder{color:#ccc;text-align:center;font-size:14px;line-height:1.9;position:absolute;padding:20px;max-width:580px}
+#placeholder b{color:#0f0;font-size:16px}
+#placeholder.desc{color:#ddd;font-size:14px}
+#placeholder.conn{color:#ddd;font-size:14px;line-height:1.9}
+#chat{width:340px;background:#1a1a1a;display:flex;flex-direction:column;border-right:2px solid #0f0;flex-shrink:0;min-width:0;overflow:hidden;direction:ltr}
+#messages{flex:1;overflow-y:auto;padding:12px;direction:rtl;scrollbar-width:thin;scrollbar-gutter:stable}
+#messages::-webkit-scrollbar{width:6px}
+#messages::-webkit-scrollbar-thumb{background:#555;border-radius:3px}
+.msg{margin:8px 0;padding:10px 12px;background:#2a2a2a;border-radius:8px;font-size:16px;line-height:1.5;word-break:break-word}
+.msg.sys{background:#3a3a1a;color:#ffeb3b;font-size:14px}
+.msg b{color:#0f0;font-size:15px}
+#chatInput{display:flex;padding:10px;gap:6px;border-top:1px solid #333;background:#1a1a1a;align-items:center;flex-shrink:0;direction:rtl}
+#chatInput input{flex:1;display:block;padding:10px 12px;background:#333;color:#fff;border:1px solid #555;border-radius:6px;font-size:16px;min-width:0}
+#chatInput button{padding:10px 14px;background:#0f0;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:14px;flex-shrink:0;min-width:60px}
+#controls{background:#222;padding:10px;display:flex;gap:10px;justify-content:center;flex-shrink:0}
+#controls button{padding:9px 18px;background:#0f0;border:none;border-radius:6px;font-weight:bold;cursor:pointer;font-size:14px}
+@media(max-width:768px){html,body{height:auto;min-height:100dvh;overflow:auto}#main{flex-direction:column;overflow:visible;flex:none}#viewerArea{height:auto;min-height:340px;flex:none;width:100%}#chat{width:100%;height:auto;min-height:45vh;flex:none;border-right:none;border-top:2px solid #0f0;overflow:visible;direction:rtl}#messages{overflow:visible;flex:none;min-height:200px;direction:rtl}#chatInput{position:sticky;bottom:0;z-index:5;background:#1e1e1e}}
+</style>
+</head>
+<body>
+<div id="topbar">
+  <b>teleparty</b>
+  <div class="upload-wrap">
+    <button id="btnUpload">رفع ملف ▾</button>
+    <div id="uploadMenu">
+      <button data-accept="video/*,audio/*">رفع فيديو / صوت</button>
+      <button data-accept=".pdf,.txt,text/plain,application/pdf">رفع pdf / txt</button>
+      <button data-accept=".csv,text/csv">رفع csv</button>
+      <button data-accept="image/*">رفع صور</button>
+    </div>
+  </div>
+  <input type="file" id="fileInput">
+  <input type="text" id="myId" placeholder="اسمك" value="host">
+  <input type="text" id="friendId" placeholder="اسم صاحبك">
+  <button class="action" id="btnCreate">انشاء</button>
+  <button class="action" id="btnJoin">دخول</button>
+  <span id="status">جاهز</span>
+</div>
+<div id="main">
+  <div id="viewerArea">
+    <div id="placeholder">
+      <b>teleparty - مزامنة حقيقية</b><br><br>
+      <span class="desc">
+      ارفع ملفات: فيديو (جميع انواع الصيغ) - صوت (جميع انواع الصيغ) - صور - PDF - TXT بكل اللغات (عربي، انجليزي، لاتيني، صيني وكل اللغات) - CSV<br>
+      المميزات: تشغيل وايقاف وتقديم متزامن، سكرول صعود ونزول متزامن، تظليل النص بالماوس متزامن بدون ازرار، تشغيل محلي عند عدم الاتصال وارسال تلقائي عند الاتصال
+      </span>
+      <br><br>
+      <span class="conn">
+      طريقة الاتصال:<br>
+      1. اكتب اسمك في خانة اسمك واكتب اسم صديقك في خانة اسم صاحبك ثم اضغط انشاء غرفة<br>
+      2. ارسل لصديقك معلومات الاتصال، اسمك هو اسم الغرفة<br>
+      3. صديقك يكتب اسمه في خانة اسمك ويكتب اسمك انت في خانة اسم صاحبك ثم يضغط دخول<br>
+      مثال: انت كتبت host في اسمك و guest في اسم صاحبك وضغطت انشاء، صديقك يكتب guest في اسمه و host في اسم صاحبه ويدخل
+      </span>
+    </div>
+    <video id="videoPlayer" controls playsinline preload="auto"></video>
+    <audio id="audioPlayer" controls preload="auto"></audio>
+    <img id="imageViewer">
+    <div id="docViewer"></div>
+  </div>
+  <div id="chat"><div id="messages"></div><div id="chatInput"><input id="txtMsg" placeholder="اكتب رسالة..."><button id="btnSend">ارسال</button></div></div>
+</div>
+<div id="controls"><button id="btnPlay">تشغيل</button><button id="btnPause">ايقاف</button></div>
+<script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<script>
+var videoEl=document.getElementById('videoPlayer');
+var audioEl=document.getElementById('audioPlayer');
+var imageEl=document.getElementById('imageViewer');
+var docEl=document.getElementById('docViewer');
+var placeholder=document.getElementById('placeholder');
+var messagesDiv=document.getElementById('messages');
+var fileInput=document.getElementById('fileInput');
+var uploadMenu=document.getElementById('uploadMenu');
+var peer=null,conn=null,localURL=null,mediaType='',mediaChunks=[],isSyncing=false,lastScrollTime=0,lastSelectTime=0;
+var currentPlainText='';
+
+function addSys(t){var d=document.createElement('div');d.className='msg sys';d.textContent='النظام: '+t;messagesDiv.appendChild(d);messagesDiv.scrollTop=messagesDiv.scrollHeight;}
+function addChat(n,t){var d=document.createElement('div');d.className='msg';d.innerHTML='<b>'+n+':</b> '+t;messagesDiv.appendChild(d);messagesDiv.scrollTop=messagesDiv.scrollHeight;}
+function hideAll(){videoEl.style.display='none';audioEl.style.display='none';imageEl.style.display='none';docEl.style.display='none';placeholder.style.display='none';videoEl.pause();audioEl.pause();}
+function escapeHtml(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function decodeBytesUniversal(bytes){
+  var encodings=['utf-8','windows-1252','iso-8859-1','windows-1256','utf-16le','utf-16be'];
+  var best='',bestScore=9999;
+  for(var i=0;i<encodings.length;i++){
+    try{
+      var dec=new TextDecoder(encodings[i],{fatal:false});
+      var txt=dec.decode(bytes);
+      var bad=(txt.match(/\uFFFD/g)||[]).length;
+      if(bad===0){return txt;}
+      if(bad<bestScore){bestScore=bad;best=txt;}
+    }catch(e){}
+  }
+  return best;
+}
+function base64ToText(dataUrl){
+  try{
+    var b64=dataUrl.split(',')[1];
+    if(!b64){return '';}
+    var binary=atob(b64);
+    var len=binary.length;
+    var bytes=new Uint8Array(len);
+    for(var i=0;i<len;i++){bytes[i]=binary.charCodeAt(i);}
+    return decodeBytesUniversal(bytes);
+  }catch(e){return '';}
+}
+function readFileUniversal(file,cb){
+  var r=new FileReader();
+  r.onload=function(ev){
+    var bytes=new Uint8Array(ev.target.result);
+    var text=decodeBytesUniversal(bytes);
+    cb(text);
+  };
+  r.readAsArrayBuffer(file);
+}
+function renderTextWithSelect(text,s,e){
+  currentPlainText=text;
+  if(s>=0 && e>=0 && e>s && s<text.length){
+    var safeEnd=e>text.length?text.length:e;
+    var before=escapeHtml(text.slice(0,s));
+    var mid=escapeHtml(text.slice(s,safeEnd));
+    var after=escapeHtml(text.slice(safeEnd));
+    docEl.innerHTML='<pre>'+before+'<mark>'+mid+'</mark>'+after+'</pre>';
+  }else{
+    docEl.innerHTML='<pre>'+escapeHtml(text)+'</pre>';
+  }
+}
+function getOffsetsFromSelection(){
+  try{
+    var sel=window.getSelection();
+    if(!sel || sel.rangeCount===0){return null;}
+    var range=sel.getRangeAt(0);
+    if(!docEl.contains(range.commonAncestorContainer)){return null;}
+    var selectedText=sel.toString();
+    if(!selectedText || selectedText.length===0){return {clear:true};}
+    if(!currentPlainText){return null;}
+    var preRange=range.cloneRange();
+    preRange.selectNodeContents(docEl);
+    preRange.setEnd(range.startContainer,range.startOffset);
+    var start=preRange.toString().length;
+    var end=start+selectedText.length;
+    if(start<0){start=0;}
+    if(end>currentPlainText.length){end=currentPlainText.length;}
+    return {start:start,end:end};
+  }catch(e){return null;}
+}
+function handleSelection(){
+  if(isSyncing){return;}
+  if(docEl.style.display==='none'){return;}
+  if(mediaType!=='txt'){return;}
+  if(!currentPlainText){return;}
+  var now=Date.now();
+  if(now-lastSelectTime<200){return;}
+  lastSelectTime=now;
+  var info=getOffsetsFromSelection();
+  if(!info){return;}
+  if(info.clear){
+    renderTextWithSelect(currentPlainText,-1,-1);
+    if(conn && conn.open){conn.send({type:'select',clear:true});}
+    return;
+  }
+  if(typeof info.start==='number'){
+    renderTextWithSelect(currentPlainText,info.start,info.end);
+    if(conn && conn.open){conn.send({type:'select',s:info.start,e:info.end});}
+  }
+}
+addSys('جاهز');
+document.getElementById('btnUpload').onclick=function(e){e.stopPropagation();uploadMenu.classList.toggle('show');};
+document.addEventListener('click',function(){uploadMenu.classList.remove('show');});
+var menuBtns=document.querySelectorAll('#uploadMenu button');
+for(var i=0;i<menuBtns.length;i++){menuBtns[i].onclick=function(){fileInput.setAttribute('accept',this.getAttribute('data-accept'));fileInput.click();uploadMenu.classList.remove('show');};}
+function getFileType(file){
+  var name=file.name.toLowerCase(),type=file.type.toLowerCase();
+  if(type.indexOf('video')===0){return 'video';}
+  if(type.indexOf('audio')===0){return 'audio';}
+  if(type.indexOf('image')===0){return 'image';}
+  if(name.indexOf('.pdf')>-1){return 'pdf';}
+  if(name.indexOf('.txt')>-1){return 'txt';}
+  if(name.indexOf('.csv')>-1){return 'csv';}
+  if(type.indexOf('pdf')>-1){return 'pdf';}
+  return 'txt';
+}
+function handleLocalFile(file,url){
+  var fType=getFileType(file);mediaType=fType;hideAll();
+  if(fType==='video'){videoEl.src=url;videoEl.style.display='block';videoEl.load();}
+  else if(fType==='audio'){audioEl.src=url;audioEl.style.display='block';audioEl.load();}
+  else if(fType==='image'){imageEl.src=url;imageEl.style.display='block';currentPlainText='';}
+  else if(fType==='pdf'){docEl.style.display='block';docEl.innerHTML='<iframe src="'+url+'" style="width:100%;height:85vh;border:none;background:#fff"></iframe>';currentPlainText='';}
+  else if(fType==='txt'){readFileUniversal(file,function(text){currentPlainText=text;docEl.style.display='block';renderTextWithSelect(text,-1,-1);});}
+  else if(fType==='csv'){readFileUniversal(file,function(csvText){currentPlainText=csvText;var rows=csvText.split('\n');var html='<table>';for(var r=0;r<rows.length;r++){if(rows[r].trim()===''){continue;}var cols=rows[r].split(',');html+='<tr>';for(var c=0;c<cols.length;c++){if(r===0){html+='<th>'+escapeHtml(cols[c])+'</th>';}else{html+='<td>'+escapeHtml(cols[c])+'</td>';}}html+='</tr>';}html+='</table>';docEl.style.display='block';docEl.innerHTML=html;});}
+}
+fileInput.onchange=function(){
+  var file=fileInput.files[0];if(!file){return;}
+  addSys('اخترت: '+file.name);
+  if(localURL){try{URL.revokeObjectURL(localURL);}catch(e){}}
+  localURL=URL.createObjectURL(file);
+  handleLocalFile(file,localURL);
+  if(conn && conn.open){
+    setTimeout(function(){
+      var reader=new FileReader();
+      reader.onload=function(ev){
+        var b64=ev.target.result;
+        var fType=getFileType(file);
+        conn.send({type:'mediaStart',fileType:fType,name:file.name});
+        var chunkSize=16000;
+        for(var j=0;j<b64.length;j+=chunkSize){
+          conn.send({type:'mediaChunk',data:b64.slice(j,j+chunkSize)});
+        }
+        conn.send({type:'mediaEnd'});
+        addSys('تم الارسال');
+      };
+      reader.readAsDataURL(file);
+    },800);
+  }
+  fileInput.value='';
+};
+function sendControl(type,time){if(isSyncing){return;}if(conn && conn.open){conn.send({type:type,t:time});}}
+function sendScroll(p){if(isSyncing){return;}var now=Date.now();if(now-lastScrollTime<80){return;}lastScrollTime=now;if(conn && conn.open){conn.send({type:'scroll',p:p});}}
+document.getElementById('btnPlay').onclick=function(){if(mediaType==='video'){videoEl.play();sendControl('play',videoEl.currentTime);}if(mediaType==='audio'){audioEl.play();sendControl('play',audioEl.currentTime);}};
+document.getElementById('btnPause').onclick=function(){if(mediaType==='video'){videoEl.pause();sendControl('pause',videoEl.currentTime);}if(mediaType==='audio'){audioEl.pause();sendControl('pause',audioEl.currentTime);}};
+videoEl.onplay=function(){sendControl('play',videoEl.currentTime);};
+videoEl.onpause=function(){sendControl('pause',videoEl.currentTime);};
+videoEl.onseeked=function(){sendControl('seek',videoEl.currentTime);};
+audioEl.onplay=function(){sendControl('play',audioEl.currentTime);};
+audioEl.onpause=function(){sendControl('pause',audioEl.currentTime);};
+audioEl.onseeked=function(){sendControl('seek',audioEl.currentTime);};
+docEl.onscroll=function(){if(docEl.style.display==='none'){return;}var max=docEl.scrollHeight-docEl.clientHeight;if(max<=0){return;}sendScroll(docEl.scrollTop/max);};
+docEl.addEventListener('mouseup',function(){setTimeout(handleSelection,80);});
+docEl.addEventListener('touchend',function(){setTimeout(handleSelection,150);});
+document.getElementById('btnSend').onclick=function(){var txt=document.getElementById('txtMsg').value.trim();if(!txt){return;}var name=document.getElementById('myId').value||'انا';addChat(name,txt);if(conn && conn.open){conn.send({type:'chat',name:name,text:txt});}document.getElementById('txtMsg').value='';};
+document.getElementById('txtMsg').onkeypress=function(e){if(e.key==='Enter'){document.getElementById('btnSend').click();}};
+document.getElementById('btnCreate').onclick=function(){var id=document.getElementById('myId').value||'host';peer=new Peer(id);peer.on('open',function(mid){document.getElementById('status').textContent='غرفة: '+mid;addSys('جاهز');});peer.on('connection',function(c){conn=c;setupConn();});};
+document.getElementById('btnJoin').onclick=function(){var myId=document.getElementById('myId').value||'guest';var friendId=document.getElementById('friendId').value.trim();if(!friendId){addSys('اكتب اسم صاحبك');return;}peer=new Peer(myId+'-'+Date.now());peer.on('open',function(){conn=peer.connect(friendId);setupConn();addSys('بدخل: '+friendId);});};
+function setupConn(){
+  conn.on('open',function(){document.getElementById('status').textContent='متصل: '+conn.peer;addSys('متصل مع '+conn.peer);});
+  conn.on('data',function(data){
+    if(data.type==='mediaStart'){mediaChunks=[];mediaType=data.fileType;hideAll();addSys('استلام: '+data.name);}
+    if(data.type==='mediaChunk'){mediaChunks.push(data.data);}
+    if(data.type==='mediaEnd'){
+      var full=mediaChunks.join('');isSyncing=true;hideAll();
+      if(mediaType==='video'){videoEl.src=full;videoEl.style.display='block';videoEl.load();}
+      else if(mediaType==='audio'){audioEl.src=full;audioEl.style.display='block';}
+      else if(mediaType==='image'){imageEl.src=full;imageEl.style.display='block';currentPlainText='';}
+      else if(mediaType==='pdf'){docEl.style.display='block';docEl.innerHTML='<iframe src="'+full+'" style="width:100%;height:85vh;border:none;background:#fff"></iframe>';currentPlainText='';}
+      else if(mediaType==='txt'){var t=base64ToText(full);currentPlainText=t;docEl.style.display='block';renderTextWithSelect(t,-1,-1);}
+      else if(mediaType==='csv'){var ct=base64ToText(full);currentPlainText=ct;var rows=ct.split('\n');var html='<table>';for(var r=0;r<rows.length;r++){if(rows[r].trim()===''){continue;}var cols=rows[r].split(',');html+='<tr>';for(var c=0;c<cols.length;c++){if(r===0){html+='<th>'+escapeHtml(cols[c])+'</th>';}else{html+='<td>'+escapeHtml(cols[c])+'</td>';}}html+='</tr>';}html+='</table>';docEl.style.display='block';docEl.innerHTML=html;}
+      addSys('اكتمل: '+mediaType);
+      setTimeout(function(){isSyncing=false;},600);
+    }
+    if(data.type==='chat'){addChat(data.name,data.text);}
+    if(data.type==='play' || data.type==='pause' || data.type==='seek'){isSyncing=true;var tt=data.t;if(mediaType==='video'){if(Math.abs(videoEl.currentTime-tt)>0.5){videoEl.currentTime=tt;}if(data.type==='play'){videoEl.play();}if(data.type==='pause'){videoEl.pause();}}if(mediaType==='audio'){if(Math.abs(audioEl.currentTime-tt)>0.5){audioEl.currentTime=tt;}if(data.type==='play'){audioEl.play();}if(data.type==='pause'){audioEl.pause();}}setTimeout(function(){isSyncing=false;},300);}
+    if(data.type==='scroll'){if(docEl.style.display!=='none'){isSyncing=true;var max=docEl.scrollHeight-docEl.clientHeight;docEl.scrollTop=max*data.p;setTimeout(function(){isSyncing=false;},150);}}
+    if(data.type==='select'){
+      if(mediaType==='txt' && currentPlainText){
+        isSyncing=true;
+        if(data.clear){renderTextWithSelect(currentPlainText,-1,-1);}
+        else if(typeof data.s==='number'){renderTextWithSelect(currentPlainText,data.s,data.e);}
+        setTimeout(function(){isSyncing=false;},150);
+      }
+    }
+  });
+  conn.on('close',function(){addSys('انقطع الاتصال');});
+}
+document.addEventListener('click',function(e){
+  if(currentPlainText && mediaType==='txt'){
+    if(!docEl.contains(e.target)){
+      var sel=window.getSelection();
+      if(!sel || sel.toString().length===0){
+        renderTextWithSelect(currentPlainText,-1,-1);
+        if(conn && conn.open){conn.send({type:'select',clear:true});}
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>
